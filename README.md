@@ -1,0 +1,2 @@
+# PositioningDemo2D
+An Arduino, RPi2, Java and Google Maps based project to sense an object's position within a 2D area. The idea is to support demo setups where the 2D area is a scaled down model of a geographical area, with a smart object communicating its position for geo tracking, as if moving within a real geographical area. GPS is not an option because we need to scale "mock" coordinates rather than using actual geo coordinates. 
