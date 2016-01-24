@@ -1,16 +1,16 @@
 /**
  * 
  */
-package com.tcs.demo;
+package org.p2dgw;
 
-import org.mik.AbstractArduinoPortImpl;
+import org.sardp4j.AbstractArduinoPort;
 
 
 /**
  * @author soumik
  *
  */
-public class TestMain extends AbstractArduinoPortImpl<TestPayloadType>{
+public class TestMain extends AbstractArduinoPort<TestPayloadType>{
 
 	static TestMain obj;
 	public TestMain() throws InstantiationException, IllegalAccessException {

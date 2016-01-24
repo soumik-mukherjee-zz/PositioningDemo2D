@@ -1,10 +1,10 @@
 /**
  * 
  */
-package com.tcs.demo;
+package org.p2dgw;
 
-import org.mik.ArduinoNumber;
-import org.mik.ArduinoNumericType;
+import org.sardp4j.ArduinoNumericFieldType;
+import org.sardp4j.ArduinoNumericType;
 
 /**
  * @author soumik
@@ -12,11 +12,11 @@ import org.mik.ArduinoNumericType;
  */
 public class TestPayloadType {
 	
-	@ArduinoNumber(Sequence=3,ArduinoNumberType = ArduinoNumericType.UInt16_t)
+	@ArduinoNumericFieldType(Sequence=3,ArduinoNumberType = ArduinoNumericType.UInt16_t)
 	private int field1;
-	@ArduinoNumber(Sequence=2,ArduinoNumberType = ArduinoNumericType.UInt8_t)
+	@ArduinoNumericFieldType(Sequence=2,ArduinoNumberType = ArduinoNumericType.UInt8_t)
 	private int field2;
-	@ArduinoNumber(Sequence=1,ArduinoNumberType = ArduinoNumericType.UInt32_t)
+	@ArduinoNumericFieldType(Sequence=1,ArduinoNumberType = ArduinoNumericType.UInt32_t)
 	private long field3;
 	/**
 	 * @return the field1
