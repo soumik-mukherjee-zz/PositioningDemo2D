@@ -1,206 +1,258 @@
 /*
- Copyright (C) 2011 J. Coliz <maniacbug@ymail.com>
-
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU General Public License
- version 2 as published by the Free Software Foundation.
+ * Filename: smart-object.ino
+ *
+ * Copyright (C) 2016 Soumik Mukherjee <miky.mukherjee@gmail.com>
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 /**
- * Example for Getting Started with nRF24L01+ radios. 
  *
- * This is an example of how to use the RF24 class.  Write this sketch to two 
- * different nodes.  Put one of the nodes into 'transmit' mode by connecting 
- * with the serial monitor and sending a 'T'.  The ping node sends the current 
- * time to the pong node, which responds by sending the value back.  The ping 
- * node can then see how long the whole cycle took.
+ *
  */
- // the LED.h include requires Wiring API at compilation
+ // the LED.h include requires Wiring API at build
  // Also to avoid compilation error " WProgram.h not found"
  // replace the corresponding include with Arduino.h in the LED.h file
-#include <LED.h>
-#include <SPI.h>
-#include <NewPing.h>
-#include "nRF24L01.h"
-#include "RF24.h"
-#include "printf.h"
-
-//
-// Hardware configuration
-//
-
-// Set up nRF24L01 radio on SPI bus plus pins 9 & 10 
-
-RF24 radio(9,10);
-
-
-NewPing x_sonar(7,8);
-NewPing y_sonar(2,4);
-
-LED txOkLed = LED(3);
-
-const unsigned long changeDetectionResCm =  1;
-
-typedef struct payload_t
-{
-  uint32_t x_uS;
-  uint32_t y_uS;
-} Payload;
-
-const uint8_t payloadSize = sizeof(payload_t);
-uint8_t payloadBuffer[payloadSize];
-
-unsigned long x_cm = 0;
-unsigned long y_cm = 0;
-//
-// Topology
-//
-
-// Radio pipe addresses for the 2 nodes to communicate.
-const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
-
-//
-// Role management
-//
-// Set up role.  This sketch uses the same software for all the nodes
-// in this system.  Doing so greatly simplifies testing.  
-//
-
-// The various roles supported by this sketch
-typedef enum { role_ping_out = 1, role_pong_back } role_e;
-
-// The debug-friendly names of those roles
-const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};
-
-// The role of the current running sketch
-role_e role = role_ping_out;
-
-void setup(void)
-{
-  //
-  // Print preamble
-  //
-
-  Serial.begin(57600);
-  printf_begin();
-  printf("\n\rRF24/examples/GettingStarted/\n\r");
-  printf("ROLE: %s\n\r",role_friendly_name[role]);
-  printf("*** PRESS 'T' to begin transmitting to the other node\n\r");
+  #include <LED.h>
+  #include <SPI.h>
+  #include "nRF24L01.h"
+  #include "RF24.h"
+  #include "printf.h"
+  #include <NewPing.h>
+  #include <positioning2D.h>
+  #define CHANGE_DETECT_RES_US 28 // in micro seconds, equivalent to 0.5 cm
 
   //
-  // Setup and configure rf radio
+  // Hardware configuration
+  //
+  NewPing x_sonar(7,8);
+  NewPing y_sonar(2,4);
+  LED statusLed = LED(3);
+  uint32_t x_us = 0;
+  uint32_t y_us = 0;
+
+  // Set up nRF24L01 radio on SPI bus plus pins 9 & 10
+  RF24 radio(9,10);
+  // Radio pipe addresses for the 2 nodes to communicate.
+  const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+
+  //
+  // Role management
+  //
+  // Set up role.  This sketch uses the same software for all the nodes
+  // in this system.  Doing so greatly simplifies testing.
   //
 
-  radio.begin();
+  // The various roles supported by this sketch
+  typedef enum { role_ping_out = 1, role_pong_back } role_e;
 
-  // optionally, increase the delay between retries & # of retries
-  radio.setRetries(15,15);
+  // The debug-friendly names of those roles
+  const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};
 
-  // optionally, reduce the payload size.  seems to
-  // improve reliability
-  //radio.setPayloadSize(8);
+  // The role of the current running sketch
+  role_e role = role_pong_back;
 
-  //
-  // Open pipes to other nodes for communication
-  //
+  byte currGwPingCnt = 0;
 
-  // This simple sketch opens two pipes for these two nodes to communicate
-  // back and forth.
-  // Open 'our' pipe for writing
-  // Open the 'other' pipe for reading, in position #1 (we can have up to 5 pipes open for reading)
-
-  //if ( role == role_ping_out )
+  void setup(void)
   {
-    //radio.openWritingPipe(pipes[0]);
+    //
+    // Print preamble
+    //
+
+    Serial.begin(57600);
+    printf_begin();
+    printf("\n\rStarting Smart Object\n\r");
+    printf("ROLE: %s\n\r",role_friendly_name[role]);
+    //printf("*** PRESS 'T' to begin transmitting to the other node\n\r");
+
+    //
+    // Setup and configure rf radio
+    //
+
+    radio.begin();
+
+    // optionally, increase the delay between retries & # of retries
+    radio.setRetries(15,15);
     radio.openReadingPipe(1,pipes[1]);
-  }
-  //else
-  {
-    //radio.openWritingPipe(pipes[1]);
-    //radio.openReadingPipe(1,pipes[0]);
-  }
-
-  //
-  // Start listening
-  //
-
-  radio.startListening();
-
-  //
-  // Dump the configuration of the rf unit for debugging
-  //
-
-  radio.printDetails();
-}
-
-void loop(void)
-{
-  
-  bool posChanged = isPositionChanged();
-  if(posChanged){
-    radio.stopListening();
-
-    // Take the time, and send it.  This will block until complete
-    //unsigned long time = millis();
-    printf("Now sending X: %lu cm, Y: %lu cm \n\r",x_cm, y_cm);
-    Payload pld = {x_cm, y_cm};
-    bool ok = radio.write( &pld, sizeof(payload_t) );
-    
-    if (ok){
-      printf("ok...");
-      // this following call is blocking (140 ms), need to improve this later
-      txOkLed.blink(140,2);
-    }
-    else
-      printf("failed.\n\r");
-
-    // Now, continue listening
     radio.startListening();
 
-    // Wait here until we get a response, or timeout (250ms)
-    unsigned long started_waiting_at = millis();
-    bool timeout = false;
-    while ( ! radio.available() && ! timeout )
-      if (millis() - started_waiting_at > 200 )
-        timeout = true;
+    //
+    // Dump the configuration of the rf unit for debugging
+    //
 
-    // Describe the results
-    if ( timeout )
+    radio.printDetails();
+  }
+
+  void loop(void)
+  {
+    //
+    // Ping out role.  Repeatedly send the current time
+    //
+    if (currGwPingCnt == MAX_GW_PING_CNT)
     {
-      printf("Failed, response timed out.\n\r");
+      // Allow enough time for gateway to switch back to reciever role
+      statusLed.blink(500,4);
+      delay(1500);
+      changeToTransmitter();
+      currGwPingCnt = 0;
     }
-    else
+    if (role == role_ping_out)
     {
-      // Grab the response, compare, and send to debugging spew
-      //unsigned long got_time;
-      Payload ackPld;
-      radio.read( &ackPld, sizeof(payload_t) );
+        boolean changedPos = isPositionChanged();
+        if (changedPos)
+        {
+            Header payloadAck;
+            Coordinates payload;
+            payload.x_uS = x_us;
+            payload.y_uS = y_us;
+            // First, stop listening so we can talk.
+            radio.stopListening();
 
-      // Spew it
-      printf("Got response with payload, X: %lu cm, Y: %lu cm\n\r",ackPld.x,ackPld.y);
-      }
-  }
-  delay(1000);
-}
+            // Take the time, and send it.  This will block until complete
+            //unsigned long time = millis();
+            printf("Now sending X = %lu uS, Y = %lu uS \n\r",payload.x_uS, payload.y_uS);
+            bool ok = radio.write( &payload, sizeof(payload) );
 
-boolean isPositionChanged(){
-  boolean isChanged = false;
-  unsigned long x = x_sonar.ping_median();
-  unsigned long y = y_sonar.ping_median();
-  x = x/US_ROUNDTRIP_CM;
-  y = y/US_ROUNDTRIP_CM;
-  int dX = abs(x - x_cm);
-  int dY = abs(y - y_cm);
-  if (dX > changeDetectionResCm){
-    isChanged = true;
-    x_cm = x;
-  }
-  if (dY > changeDetectionResCm){
-    isChanged = true;
-    y_cm = y;
-  }
+            if (ok)
+            {
+                printf("ok...");
+            }
+            else
+              printf("failed.\n\r");
 
-  return isChanged;
-  
-}
-// vim:cin:ai:sts=2 sw=2 ft=cpp
+            // Now, continue listening
+            radio.startListening();
+
+            // Wait here until we get a response, or timeout (250ms)
+            unsigned long started_waiting_at = millis();
+            bool timeout = false;
+            while ( ! radio.available() && ! timeout )
+                if (millis() - started_waiting_at > 200 )
+                    timeout = true;
+
+            // Describe the results
+            if ( timeout )
+            {
+                printf("Failed, response timed out.\n\r");
+            }
+            else
+            {
+                // Grab the response, compare, and send to debugging spew
+                //unsigned long got_time;
+                radio.read( &payloadAck, sizeof(payloadAck) );
+
+                // Spew it
+                printf("Got payload response %u\n\r",payloadAck.id);
+                statusLed.blink(140,2);
+            }
+
+        }
+
+      // Try again 1s later
+      delay(1000);
+    }
+
+    //
+    // Pong back role.  Receive each packet, dump it out, and send it back
+    //
+
+    if ( role == role_pong_back )
+    {
+        Header pingd, ack;
+        // if there is data ready
+        if ( radio.available() )
+        {
+            // Dump the payloads until we've gotten everything
+            //unsigned long got_time;
+            bool done = false;
+            while (!done)
+            {
+                // Fetch the payload, and see if this was the last one.
+                done = radio.read( &pingd, sizeof(pingd) );
+
+                // Spew it
+                printf("Got ping ACK %u...",pingd.id);
+                currGwPingCnt ++;
+              	// Delay just a little bit to let the other unit
+              	// make the transition to receiver
+              	delay(20);
+            }
+
+            // First, stop listening so we can talk
+            radio.stopListening();
+            ack.id = HDR_PAIRING_PING_RX_ACK;
+            // Send the final one back.
+            radio.write( &ack, sizeof(ack) );
+            printf("Sent ping ACK.\n\r");
+
+            // Now, resume listening so we catch the next packets.
+            radio.startListening();
+        }
+    }
+
+    //
+    // Change roles
+    //
+
+//    if ( Serial.available() )
+//    {
+//      char c = toupper(Serial.read());
+//      if ( c == 'T' && role == role_pong_back )
+//      {
+//          changeToTransmitter();
+//      }
+//      else if ( c == 'R' && role == role_ping_out )
+//      {
+//          changeToReciever();
+//      }
+//    }
+  }
+  void changeToReciever()
+  {
+      printf("*** CHANGING TO RECEIVE ROLE -- PRESS 'T' TO SWITCH BACK\n\r");
+
+        // Become the primary receiver (pong back)
+        role = role_pong_back;
+        radio.openWritingPipe(pipes[1]);
+        radio.openReadingPipe(1,pipes[0]);
+  }
+  void changeToTransmitter()
+  {
+        printf("*** CHANGING TO TRANSMIT ROLE -- PRESS 'R' TO SWITCH BACK\n\r");
+
+        // Become the primary transmitter (ping out)
+        role = role_ping_out;
+        radio.openWritingPipe(pipes[0]);
+        radio.openReadingPipe(1,pipes[1]);
+  }
+  boolean isPositionChanged()
+  {
+        boolean isChanged = false;
+        uint32_t x = x_sonar.ping_median();
+        uint32_t y = y_sonar.ping_median();
+        uint8_t dX = abs(x - x_us);
+        uint8_t dY = abs(y - y_us);
+        if (dX > CHANGE_DETECT_RES_US)
+        {
+            isChanged = true;
+            x_us = x;
+        }
+        if (dY > CHANGE_DETECT_RES_US)
+        {
+            isChanged = true;
+            y_us = y;
+        }
+        return isChanged;
+  }
