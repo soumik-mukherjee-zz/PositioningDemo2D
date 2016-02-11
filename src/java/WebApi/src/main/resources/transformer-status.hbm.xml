@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+   <class name="org.pos2d.webapi.entities.TransformerStatus" table="TransformerStatus">
+      <id name="gid">
+      	<generator class="identity" />
+      </id>
+       <property name="status" type="string"/>
+       <property name="statusData" type="string" column="data"/>
+       
+       <many-to-one name="transformer" class="org.pos2d.webapi.entities.Transformer" column="xfrid" unique="true" not-null="true" cascade="all"/>
+   </class>
+</hibernate-mapping>

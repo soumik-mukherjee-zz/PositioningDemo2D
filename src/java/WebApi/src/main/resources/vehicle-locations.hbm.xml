@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+   <class name="org.pos2d.webapi.entities.VehicleLocation" table="VehicleLocations">
+     <id name="gid">
+     	<generator class="identity" />
+     </id>
+     <property name="updatedOn" type="calendar"/>
+     <property name="location" type="org.hibernate.spatial.GeometryType"/>
+     <many-to-one name="vehicle" class="org.pos2d.webapi.entities.Vehicle" fetch="join">
+          <column name="vehicleid" not-null="true" />
+      </many-to-one>
+   </class>
+</hibernate-mapping>

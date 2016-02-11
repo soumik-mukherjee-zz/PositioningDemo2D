@@ -1,16 +1,80 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jaxrs="http://cxf.apache.org/jaxrs" xmlns:context="http://www.springframework.org/schema/context" xsi:schemaLocation=" http://www.springframework.org/schema/beans  http://www.springframework.org/schema/beans/spring-beans-3.0.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd http://cxf.apache.org/jaxrs http://cxf.apache.org/schemas/jaxrs.xsd">
+<beans 
+	xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xmlns:jaxrs="http://cxf.apache.org/jaxrs" 
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:rabbit="http://www.springframework.org/schema/rabbit" 
+	xsi:schemaLocation="http://www.springframework.org/schema/beans  http://www.springframework.org/schema/beans/spring-beans-3.0.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd http://cxf.apache.org/jaxrs http://cxf.apache.org/schemas/jaxrs.xsd http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit-1.1.xsd">
     <import resource="classpath:META-INF/cxf/cxf.xml"/>
     <context:property-placeholder/>
     <context:annotation-config/>
     <bean class="org.springframework.web.context.support.ServletContextPropertyPlaceholderConfigurer"/>
     <bean class="org.springframework.beans.factory.config.PreferencesPlaceholderConfigurer"/>
+    <!--  -->
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">  
+	  <property name="driverClassName" value="org.postgresql.Driver" />  
+	  <property name="url" value="jdbc:postgresql://localhost:5432/pos2d-demo" />  
+	  <property name="username" value="soumik" />  
+	</bean>
+	<bean id="sessionFactory" class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">  
+	  <property name="dataSource" ref="dataSource" />  
+	  <property name="configLocation" value="classpath:hibernate.cfg.xml" /> 
+	</bean>
+	<tx:annotation-driven />
+	<bean id="transactionManager"
+	    class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+	    <property name="sessionFactory" ref="sessionFactory" />
+	</bean>    
     <jaxrs:server id="services" address="/">
         <jaxrs:serviceBeans>
-            <bean class="org.pos2d.webapi.HelloWorld"/>
+        	<!-- Service Beans -->
+            <bean class="org.pos2d.webapi.UrbanAreaService"/>
+            <bean class="org.pos2d.webapi.CityService"/>
+            <bean class="org.pos2d.webapi.TransformerService"/>
+            <bean class="org.pos2d.webapi.VehicleService"/>
         </jaxrs:serviceBeans>
         <jaxrs:providers>
             <bean class="org.codehaus.jackson.jaxrs.JacksonJsonProvider"/>
         </jaxrs:providers>
     </jaxrs:server>
+    <!-- DAO Beans -->
+    <bean id="cityDAO" class="org.pos2d.webapi.dao.CityDAOImpl">
+	    <constructor-arg>
+	        <ref bean="sessionFactory" />
+	    </constructor-arg>
+	</bean>
+	<bean id="urbanAreaDAO" class="org.pos2d.webapi.dao.UrbanAreaDAOImpl">
+	    <constructor-arg>
+	        <ref bean="sessionFactory" />
+	    </constructor-arg>
+	</bean>
+	<bean id="xfrDAO" class="org.pos2d.webapi.dao.TransformerDAOImpl">
+	    <constructor-arg>
+	        <ref bean="sessionFactory" />
+	    </constructor-arg>
+	</bean>
+	<bean id="vehicleDAO" class="org.pos2d.webapi.dao.VehicleDAOImpl">
+	    <constructor-arg>
+	        <ref bean="sessionFactory" />
+	    </constructor-arg>
+	</bean>
+	<!-- AMQP and RabbitMQ config -->
+	<rabbit:connection-factory id="connectionFactory" host="localhost" port="5672"/>
+	<rabbit:template id="rabbitTemplate" connection-factory="connectionFactory" exchange="amq.topic"/>
+	<rabbit:admin connection-factory="connectionFactory" />
+	<rabbit:queue name="location-change-dblogger" />
+	<rabbit:queue name="location-change-webui" />
+	<rabbit:queue name="xformer-status-dblogger" />
+	<rabbit:queue name="xformer-status-webui" />
+	<rabbit:listener-container connection-factory="connectionFactory">
+    	<rabbit:listener ref="dbLogger" method="saveLocation" queue-names="location-change-dblogger" />
+    	<rabbit:listener ref="dbLogger" method="saveXfrStatus" queue-names="xformer-status-dblogger" />
+    	<rabbit:listener ref="dbLogger" method="saveProximityEvent" queue-names="proximity-dblogger" />
+    	<rabbit:listener ref="proximityDetector" method="listen" queue-names="proximity-detector" />
+    </rabbit:listener-container>
+	<!-- RabbitMQ listener beans -->
+	<bean id="dbLogger" class="org.pos2d.webapi.mq.DbLoggerListener"/>
+	<bean id="proximityDetector" class="org.pos2d.webapi.mq.ProximityListener"/>
 </beans>
